@@ -174,7 +174,7 @@
           <div class="panel-heading"><h2>Як читати оцінку</h2></div>
           <div class="legend">
             <div class="legend-row"><strong>SQUEEZE EVIDENCE</strong><span>Тільки ознаки потенційного перегріву LONG: positive/high funding, OI increase/abnormal growth ≥3%, L/S ≥1.5, 4H extension ≥3%, volume ≥1.5×, RSI ≥70, taker L/S ≥1.5 та short liquidation &gt; long liquidation і ≥0.1% OI quote. Кожен відомий фактор має однакову вагу; недоступні фактори виключаються з бази оцінки. Це не сигнал SHORT.</span></div>
-            <div class="legend-row"><strong>BEARISH CONFIRMATION</strong><span>Окремо оцінює закриті 15m свічку, close нижче локальної підтримки/рівня, sell volume +15%, bearish MACD, RSI deterioration, OI реакцію та перевагу long-ліквідацій.</span></div>
+            <div class="legend-row"><strong>BEARISH CONFIRMATION</strong><span>Окремо оцінює закриті 15m свічку, close нижче локальної підтримки/рівня, sell volume +15%, bearish MACD, RSI deterioration, 4H OI реакцію та 4H перевагу long-ліквідацій. Таймфрейм кожного джерела підписаний.</span></div>
             <div class="legend-row"><strong>SHORT ENTRY QUALITY</strong><span>35% squeeze + 45% bearish confirmation + 20% якості точки (закриття нижче рівня, bearish candle, sell volume та відстань не більш як 1.5 ATR). Статус входу вимагає окремо: score ≥65, squeeze ≥45, bearish ≥65, point quality ≥50.</span></div>
             <div class="legend-row"><strong>Без repaint</strong><span>RSI, MACD, EMA, обсяг та підтвердження використовують лише закриті 4H/15m свічки. Таймфрейми позначені окремо.</span></div>
           </div>
@@ -250,8 +250,8 @@
       }
 
       async function getJson(path, params = {}) {
-        const query = new URLSearchParams(Object.entries(params).filter(([, value]) => value != null));
-        const response = await fetch(`${API}${path}${query.size ? `?${query}` : ''}`);
+        const query = new URLSearchParams(Object.entries(params).filter(([, value]) => value != null)).toString();
+        const response = await fetch(`${API}${path}${query ? `?${query}` : ''}`);
         if (!response.ok) throw new Error(`Gate.io API HTTP ${response.status}`);
         return response.json();
       }
@@ -514,11 +514,11 @@
           const metric = (value, source) => `<small>${source}</small>`;
           const cellValue = (value, source) => `${value}<small>${source}</small>`;
           const fourDetails = four
-            ? `RSI ${four.rsi == null ? 'N/A' : four.rsi.toFixed(1)} · MACD ${four.macdLine == null || four.macdSignal == null ? 'N/A' : four.macdLine < four.macdSignal ? 'bearish' : 'bullish'}<br>EMA20 ${formatPrice(four.ema20)} · extension ${percent(four.extension)}<br>Аномалія обсягу: ${four.volumeRatio == null ? 'N/A' : `${four.volumeRatio.toFixed(2)}×`} · Gate.io candles 4H`
-            : `N/A · API ERROR<small>RSI/MACD/EMA/volume — Gate.io candles 4H</small>`;
+            ? `RSI ${four.rsi == null ? unavailable() : four.rsi.toFixed(1)} · MACD ${four.macdLine == null || four.macdSignal == null ? unavailable() : four.macdLine < four.macdSignal ? 'bearish' : 'bullish'}<br>EMA20 ${formatPrice(four.ema20)} · extension ${percent(four.extension)}<br>Аномалія обсягу: ${four.volumeRatio == null ? unavailable() : `${four.volumeRatio.toFixed(2)}×`} · Gate.io candles 4H`
+            : `${data.candle4hError ? 'N/A · API ERROR' : 'N/A · недостатньо закритих свічок'}<small>RSI/MACD/EMA/volume — Gate.io candles 4H</small>`;
           const fifteenDetails = fifteen
-            ? `Свічка ${fifteen.bearishCandle ? 'ведмежа' : 'не ведмежа'} · RSI ${fifteen.rsi == null ? 'N/A' : fifteen.rsi.toFixed(1)}<br>MACD ${fifteen.macdLine == null || fifteen.macdSignal == null ? 'N/A' : fifteen.macdLine < fifteen.macdSignal ? 'bearish' : 'bullish'} · support ${formatPrice(fifteen.support)}<br>Рівень підтвердження ${formatPrice(fifteen.confirmationLevel)} · Gate.io candles 15m`
-            : `N/A · API ERROR<small>Підтвердження — Gate.io candles 15m</small>`;
+            ? `Свічка ${fifteen.bearishCandle ? 'ведмежа' : 'не ведмежа'} · RSI ${fifteen.rsi == null ? unavailable() : fifteen.rsi.toFixed(1)}<br>MACD ${fifteen.macdLine == null || fifteen.macdSignal == null ? unavailable() : fifteen.macdLine < fifteen.macdSignal ? 'bearish' : 'bullish'} · support ${formatPrice(fifteen.support)}<br>Рівень підтвердження ${formatPrice(fifteen.confirmationLevel)} · Gate.io candles 15m`
+            : `${data.candle15mError ? 'N/A · API ERROR' : 'N/A · недостатньо закритих свічок'}<small>Підтвердження — Gate.io candles 15m</small>`;
           const fundingState = funding == null ? unavailable() : `${percent(funding * 100, 4)} · ${funding > 0 ? 'тиск LONG' : funding < 0 ? 'тиск SHORT' : 'нейтрально'}`;
           const liquidationText = assessed.longLiquidations == null || assessed.shortLiquidations == null
             ? unavailable()
@@ -540,10 +540,10 @@
             <td class="metric">${cellValue(percent(number(ticker.change_percentage)), '24h change · Gate.io')}<small>Quote volume 24h: ${formatCompact(number(ticker.volume_24h_quote))} USDT · Gate.io</small></td>
             <td class="metric">${cellValue(fundingState, 'Funding · Gate.io')}<small>Інтервал: ${fundingInterval} · contracts · відносно історії: ${funding == null || assessed.fundingMean == null ? unavailable() : percent((funding - assessed.fundingMean) * 100, 4)}</small></td>
             <td class="metric">${cellValue(assessed.openInterest == null ? unavailable() : `${formatCompact(assessed.openInterest)} контрактів`, 'OI · Gate.io contract_stats')}<small>${assessed.openInterestUsd == null ? unavailable() : `OI value ${formatCompact(assessed.openInterestUsd)} USDT quote · Gate.io`}</small><small>Зміна 4H: ${percent(assessed.oiChange)} · Gate.io contract_stats</small></td>
-            <td class="metric">${fourDetails}<small>Funding pressure: ${funding == null ? 'N/A' : funding > 0 ? 'positive' : 'not positive'} · Gate.io</small></td>
+            <td class="metric">${fourDetails}<small>Funding pressure: ${funding == null ? unavailable() : funding > 0 ? 'positive' : 'not positive'} · Gate.io</small></td>
             <td class="metric">${fifteenDetails}<small>Останній завершений 4H період: ${liquidationText} · Gate.io contract_stats</small><small>Історія liquidation 4H:<br>${liquidationHistory || unavailable()} · Gate.io contract_stats</small></td>
             <td><div class="score-grid">${scoreCard('SQUEEZE EVIDENCE', assessed.squeeze)}${scoreCard('BEARISH CONFIRMATION', assessed.bearish)}${scoreCard('SHORT ENTRY QUALITY', shortQualityScore)}</div><small>Якість точки входу: ${assessed.entry.score == null ? 'N/A — недостатньо даних' : `${assessed.entry.score}/100`} · комбінований score: ${missingShortQuality}</small></td>
-            <td><span class="badge ${assessed.statusClass}">${assessed.status}</span><small>Top L/S account ${ratioDisplay(assessed.topLsrAccount)} · top size ${ratioDisplay(assessed.topLsrSize)} · L/S ${ratioDisplay(assessed.lsr)} · taker ${ratioDisplay(assessed.takerLsr)} · Gate.io contract_stats</small>${sources}${apiError ? '<small class="api-error">API ERROR · показані останні успішні дані</small>' : ''}</td>
+            <td><span class="badge ${assessed.statusClass}">${assessed.status}</span><small>Top L/S accounts ${ratioDisplay(assessed.topLsrAccount)} · top positions ${ratioDisplay(assessed.topLsrSize)} · L/S accounts ${ratioDisplay(assessed.lsr)} · L/S taker ${ratioDisplay(assessed.takerLsr)} · Gate.io contract_stats</small>${sources}${apiError ? '<small class="api-error">API ERROR · показані останні успішні дані</small>' : ''}</td>
             <td>${removeButton}</td>
           </tr>`;
         }).join('');
@@ -608,6 +608,8 @@
           fifteenMinute: fifteenRaw ? analyzeCandles(closedCandles(fifteenRaw, '15m')) : null,
           stats,
           fundingHistory: fundingHistory || [],
+          candle4hError: results[0].status === 'rejected',
+          candle15mError: results[1].status === 'rejected',
           apiErrors: errors
         };
         data.assessment = assess(data);
@@ -651,9 +653,7 @@
           const dataBySymbol = await fetchWatchlist(tickerMap, contractMap);
           dataBySymbol.forEach((data, symbol) => {
             if (data) latestData.set(symbol, data);
-          });
-          dataBySymbol.forEach((data, symbol) => {
-            if (!data) latestData.delete(symbol);
+            else latestData.delete(symbol);
           });
           renderWatchlist(dataBySymbol);
           renderMovers();
