@@ -84,6 +84,12 @@
     .legend { display: grid; gap: 10px; }
     .legend-row { display: grid; grid-template-columns: 112px 1fr; gap: 10px; font-size: 12px; line-height: 1.5; }
     .legend-row strong { color: #dce6f8; }
+    .source-groups { display: grid; gap: 15px; }
+    .source-group h3 { margin: 0 0 7px; font-size: 13px; }
+    .source-links { display: flex; flex-wrap: wrap; gap: 7px; }
+    .source-links a { color: var(--blue); border: 1px solid #34425e; border-radius: 7px; padding: 6px 8px; font-size: 11px; text-decoration: none; }
+    .source-links a:hover { color: #c5d5ff; background: #1d2a43; }
+    .source-group p { color: var(--muted); font-size: 11px; line-height: 1.5; margin: 7px 0 0; }
     footer { color: var(--muted); font-size: 11px; line-height: 1.6; padding: 3px 2px; }
     @media (max-width: 900px) {
       .layout { grid-template-columns: 1fr; }
@@ -120,7 +126,7 @@
     <section class="stats" aria-label="Зведення ринку">
       <div class="stat"><div class="stat-label">Пар у списку</div><div class="stat-value" id="watch-count">0</div></div>
       <div class="stat"><div class="stat-label">Різкі рухи · зміна 24 год ≥ 8%</div><div class="stat-value" id="mover-count">—</div></div>
-      <div class="stat"><div class="stat-label">Активні сигнали «Мертвий кит»</div><div class="stat-value" id="whale-count">—</div></div>
+      <div class="stat"><div class="stat-label">Ринкові аномалії · не ончейн-гаманці</div><div class="stat-value" id="whale-count">—</div></div>
       <div class="stat"><div class="stat-label">Інтервал оновлення</div><div class="stat-value">60 с</div></div>
     </section>
 
@@ -146,7 +152,7 @@
       </div>
       <aside>
         <section class="panel">
-          <div class="panel-heading"><h2>Сигнали «Мертвий кит»</h2><span class="count">ймовірний великий вихід</span></div>
+          <div class="panel-heading"><h2>Ринкова аномалія</h2><span class="count">не ідентифікує гаманець</span></div>
           <div id="whale-alerts"><div class="loading">Перевіряємо обсяг та відкритий інтерес…</div></div>
         </section>
         <section class="panel">
@@ -159,8 +165,64 @@
           </div>
         </section>
         <section class="panel">
-          <div class="panel-heading"><h2>Що саме означає «Мертвий кит»?</h2></div>
-          <div class="signal-copy">Це умовна назва евристичного сигналу, а не виявлення конкретного гаманця. Він з'являється, коли годинний обсяг різко перевищує власну середню величину, ціна рухається щонайменше на 2%, а відкритий інтерес зменшується. Це може вказувати на масове закриття позицій; без ончейн-даних неможливо підтвердити перекази чи особу великого власника.</div>
+          <div class="panel-heading"><h2>Як перевірити «мертвого кита»</h2></div>
+          <div class="signal-copy">«Мертвий кит» — це гаманець із великим балансом відносно обігу або добового обсягу, який місяцями чи роками був неактивним, а потім переказав токени. Щоб підтвердити такий випадок, перевірте історію та вік адреси в блокчейн-оглядачі, розмір переказу й мітку адреси (біржа/OTC) в Arkham або Whale Alert, а також можливий зв'язок із командою, ранніми інвесторами чи розблокуванням. Переказ не доводить продажу: потрібне підтвердження кількома джерелами. Цей віджет не читає історію адрес і не виявляє «мертвих китів».</div>
+        </section>
+        <section class="panel">
+          <div class="panel-heading"><h2>Джерела для перевірки</h2></div>
+          <div class="source-groups">
+            <div class="source-group">
+              <h3>Гаманці, перекази й ончейн-вік</h3>
+              <div class="source-links">
+                <a href="https://whale-alert.io/" target="_blank" rel="noopener noreferrer">Whale Alert</a>
+                <a href="https://x.com/lookonchain" target="_blank" rel="noopener noreferrer">Lookonchain · X</a>
+                <a href="https://intel.arkm.com/" target="_blank" rel="noopener noreferrer">Arkham</a>
+                <a href="https://app.nansen.ai/" target="_blank" rel="noopener noreferrer">Nansen</a>
+                <a href="https://etherscan.io/" target="_blank" rel="noopener noreferrer">Etherscan</a>
+                <a href="https://bscscan.com/" target="_blank" rel="noopener noreferrer">BscScan</a>
+                <a href="https://debank.com/" target="_blank" rel="noopener noreferrer">DeBank</a>
+                <a href="https://dune.com/" target="_blank" rel="noopener noreferrer">Dune</a>
+                <a href="https://glassnode.com/" target="_blank" rel="noopener noreferrer">Glassnode</a>
+                <a href="https://app.santiment.net/" target="_blank" rel="noopener noreferrer">Santiment</a>
+              </div>
+              <p>Звіряйте мережу та адресу контракту; мітки й індикатори віку можуть бути неповними. Частина функцій платна.</p>
+            </div>
+            <div class="source-group">
+              <h3>Фандінг, OI та ліквідації</h3>
+              <div class="source-links">
+                <a href="https://www.coinglass.com/" target="_blank" rel="noopener noreferrer">CoinGlass</a>
+                <a href="https://coinalyze.net/" target="_blank" rel="noopener noreferrer">Coinalyze</a>
+                <a href="https://laevitas.ch/" target="_blank" rel="noopener noreferrer">Laevitas</a>
+                <a href="https://www.tradingview.com/" target="_blank" rel="noopener noreferrer">TradingView</a>
+                <a href="https://www.gate.io/" target="_blank" rel="noopener noreferrer">Gate</a>
+              </div>
+              <p>Порівнюйте метрики на тій самій біржі, для того самого контракту й часового інтервалу.</p>
+            </div>
+            <div class="source-group">
+              <h3>Ціна, ліквідність і розблокування</h3>
+              <div class="source-links">
+                <a href="https://www.coingecko.com/" target="_blank" rel="noopener noreferrer">CoinGecko</a>
+                <a href="https://coinmarketcap.com/" target="_blank" rel="noopener noreferrer">CoinMarketCap</a>
+                <a href="https://dexscreener.com/" target="_blank" rel="noopener noreferrer">DexScreener</a>
+                <a href="https://www.geckoterminal.com/" target="_blank" rel="noopener noreferrer">GeckoTerminal</a>
+                <a href="https://tokenomist.ai/" target="_blank" rel="noopener noreferrer">Tokenomist</a>
+                <a href="https://cryptorank.io/" target="_blank" rel="noopener noreferrer">CryptoRank</a>
+              </div>
+              <p>Зіставляйте циркуляційну капіталізацію, FDV, ліквідність пулу та календар вестингу; перевіряйте розбіжності цін.</p>
+            </div>
+            <div class="source-group">
+              <h3>Новини та безпека контракту</h3>
+              <div class="source-links">
+                <a href="https://www.panewslab.com/" target="_blank" rel="noopener noreferrer">PANews</a>
+                <a href="https://followin.io/" target="_blank" rel="noopener noreferrer">Followin</a>
+                <a href="https://www.theblock.co/" target="_blank" rel="noopener noreferrer">The Block</a>
+                <a href="https://www.coindesk.com/" target="_blank" rel="noopener noreferrer">CoinDesk</a>
+                <a href="https://gopluslabs.io/" target="_blank" rel="noopener noreferrer">GoPlus Security</a>
+                <a href="https://tokensniffer.com/" target="_blank" rel="noopener noreferrer">Token Sniffer</a>
+              </div>
+              <p>Підтверджуйте новини офіційними каналами проєкту, а результати сканерів — кодом контракту в оглядачі мережі.</p>
+            </div>
+          </div>
         </section>
       </aside>
     </div>
@@ -327,10 +389,10 @@
         document.getElementById('whale-count').textContent = alerts.length;
         const container = document.getElementById('whale-alerts');
         if (!alerts.length) {
-          container.innerHTML = '<div class="empty">Немає сигналу за заданими умовами. Це не означає, що великі учасники неактивні: показник є лише ринковою евристикою.</div>';
+          container.innerHTML = '<div class="empty">Немає ринкової аномалії за заданими умовами. Це не означає, що великі учасники неактивні: показник є лише деривативною евристикою, а не даними про гаманець.</div>';
           return;
         }
-        container.innerHTML = alerts.map(({ symbol, data }) => `<div class="signal-box"><div class="signal-title amber">⚠ ${escapeHtml(symbol)} · можливий великий вихід</div><div class="signal-copy">Годинний обсяг у ${data.volumeRatio.toFixed(1)} раза вищий за середній; рух свічки ${percent(data.candleMove)}; OI знизився на ${percent(Math.abs(data.oiChange))} від попереднього опитування. Це не ідентифікує гаманець і не підтверджує продаж.</div></div>`).join('');
+        container.innerHTML = alerts.map(({ symbol, data }) => `<div class="signal-box"><div class="signal-title amber">⚠ ${escapeHtml(symbol)} · аномальний рух і зниження OI</div><div class="signal-copy">Годинний обсяг у ${data.volumeRatio.toFixed(1)} раза вищий за середній; рух свічки ${percent(data.candleMove)}; OI знизився на ${percent(Math.abs(data.oiChange))} від попереднього опитування. Можливе закриття позицій. Це не ідентифікує гаманець і не підтверджує продаж.</div></div>`).join('');
       }
 
       function escapeHtml(value) {
