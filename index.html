@@ -88,6 +88,13 @@
     .score-value { font-size: 16px; font-weight: 800; margin-top: 5px; }
     .status-line { display: block; margin-top: 7px; font-weight: 800; }
     .api-error { color: var(--red); }
+    .token-form { display: grid; grid-template-columns: minmax(140px, .7fr) minmax(220px, 1.3fr) auto; gap: 8px; }
+    .token-form input, .token-form select { min-width: 0; border: 1px solid #34425e; border-radius: 9px; color: #e8edf8; background: #0c1426; padding: 10px 12px; }
+    .token-result { margin-top: 12px; border: 1px solid #25314a; border-radius: 9px; padding: 12px; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+    .token-result:empty { display: none; }
+    .token-result a { color: var(--blue); }
+    .token-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 16px; margin-top: 8px; }
+    .provider-list { color: var(--muted); font-size: 11px; line-height: 1.6; }
     .legend { display: grid; gap: 10px; }
     .legend-row { display: grid; grid-template-columns: 112px 1fr; gap: 10px; font-size: 12px; line-height: 1.5; }
     .legend-row strong { color: #dce6f8; }
@@ -111,6 +118,8 @@
       .stat-value { font-size: 18px; }
       .panel { padding: 14px; }
       .legend-row { grid-template-columns: 1fr; gap: 2px; }
+      .token-form { grid-template-columns: 1fr; }
+      .token-fields { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -181,7 +190,29 @@
         </section>
         <section class="panel">
           <div class="panel-heading"><h2>Джерела та доступність даних</h2></div>
-          <div class="signal-copy">Усі ринкові значення надходять із публічного Gate.io API v4 для USDT futures. Ціни, 24h-обсяг і funding — tickers; funding interval — contracts; свічки — candlesticks; OI, L/S ratios і направлені ліквідації — contract_stats; історія funding — funding_rate. Long/short ratio, top-trader ratio, taker ratio та liquidation events відображаються лише якщо Gate.io повертає відповідні поля. Немає API-значення — показується N/A, а не нуль. <a href="https://www.gate.com/docs/developers/apiv4/en/futures/" target="_blank" rel="noopener noreferrer">Офіційна документація Gate.io</a></div>
+          <div class="signal-copy">Усі ф'ючерсні значення надходять із публічного Gate.io API v4. Додаткові token market data не впливають на ф'ючерсні сигнали. <a href="https://www.gate.com/docs/developers/apiv4/en/futures/" target="_blank" rel="noopener noreferrer">Офіційна документація Gate.io</a></div>
+          <p class="provider-list"><strong>Підключені без ключа:</strong> DexScreener та GeckoTerminal — лише за точною мережею й адресою контракту. <strong>Не підключені:</strong> CoinGlass, Coinalyze, Laevitas, CoinGecko, CoinMarketCap, TradingView, Tokenomist і CryptoRank — ключі, обмеження чи публічні умови не налаштовані; платні API не додаються. Наявність графіка/тикера не є перевіркою токена.</p>
+        </section>
+        <section class="panel">
+          <div class="panel-heading"><h2>Перевірка token contract</h2><span class="count">мережа + адреса, не тикер</span></div>
+          <form class="token-form" id="token-form">
+            <select id="token-network" aria-label="Мережа токена">
+              <option value="ethereum">Ethereum</option>
+              <option value="polygon">Polygon</option>
+              <option value="arbitrum">Arbitrum</option>
+              <option value="optimism">Optimism</option>
+              <option value="base">Base</option>
+              <option value="bsc">BNB Chain</option>
+              <option value="solana">Solana</option>
+            </select>
+            <input id="token-address" type="text" autocomplete="off" spellcheck="false" aria-label="Адреса контракту токена" placeholder="Точна адреса контракту">
+            <button class="add-button" type="submit">Перевірити</button>
+          </form>
+          <div id="token-result" class="token-result" aria-live="polite"></div>
+        </section>
+        <section class="panel">
+          <div class="panel-heading"><h2>WHALE / EXCHANGE FLOW</h2><span class="count">on-chain · окремо від ф'ючерсів</span></div>
+          <div id="whale-flow" class="signal-copy">N/A — наявні публічні джерела не дають перевірених великих біржових переказів із мережею, токеном, напрямком і timestamp без окремого провайдера. Whale Alert та інші платні/ключові API не підключені. Gate.io liquidation data не є on-chain переказами. Дані не інтерпретуються як продаж.</div>
         </section>
       </aside>
     </div>
@@ -194,8 +225,19 @@
       const STORAGE_KEY = 'market-radar-watchlist-v1';
       const REFRESH_MS = 60_000;
       const FUNDING_CACHE_MS = 15 * 60_000;
+      const TOKEN_CACHE_MS = 5 * 60_000;
       const INTERVAL_SECONDS = { '4h': 14_400, '15m': 900 };
       const fundingCache = new Map();
+      const tokenCache = new Map();
+      const TOKEN_NETWORKS = {
+        ethereum: { label: 'Ethereum', gecko: 'eth', dex: 'ethereum', address: 'evm' },
+        polygon: { label: 'Polygon', gecko: 'polygon_pos', dex: 'polygon', address: 'evm' },
+        arbitrum: { label: 'Arbitrum', gecko: 'arbitrum', dex: 'arbitrum', address: 'evm' },
+        optimism: { label: 'Optimism', gecko: 'optimism', dex: 'optimism', address: 'evm' },
+        base: { label: 'Base', gecko: 'base', dex: 'base', address: 'evm' },
+        bsc: { label: 'BNB Chain', gecko: 'bsc', dex: 'bsc', address: 'evm' },
+        solana: { label: 'Solana', gecko: 'solana', dex: 'solana', address: 'solana' }
+      };
       const latestData = new Map();
       let watchlist = loadWatchlist();
       let marketTickers = [];
@@ -254,6 +296,76 @@
         const response = await fetch(`${API}${path}${query ? `?${query}` : ''}`);
         if (!response.ok) throw new Error(`Gate.io API HTTP ${response.status}`);
         return response.json();
+      }
+
+      async function getPublicJson(url) {
+        const response = await fetch(url, { headers: { Accept: 'application/json' } });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.json();
+      }
+
+      function tokenAddressValid(network, address) {
+        if (network.address === 'evm') return /^0x[a-fA-F0-9]{40}$/.test(address);
+        return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address);
+      }
+
+      function tokenProviderData(network, address, dexPairs, geckoPools) {
+        const dexItems = Array.isArray(dexPairs) ? dexPairs : [];
+        const matchedDexPairs = dexItems.filter(pair =>
+          pair.chainId?.toLowerCase() === network.dex &&
+          [pair.baseToken?.address, pair.quoteToken?.address].some(value => value?.toLowerCase() === address.toLowerCase())
+        );
+        const dexPair = matchedDexPairs.sort((a, b) => (number(b.liquidity?.usd) || 0) - (number(a.liquidity?.usd) || 0))[0] || null;
+        const geckoItems = Array.isArray(geckoPools?.data) ? geckoPools.data : [];
+        const geckoPool = geckoItems.sort((a, b) =>
+          (number(b.attributes?.reserve_in_usd) || 0) - (number(a.attributes?.reserve_in_usd) || 0)
+        )[0] || null;
+        return {
+          dexPair,
+          dexPairCount: matchedDexPairs.length,
+          geckoPool,
+          geckoPoolCount: geckoItems.length
+        };
+      }
+
+      function renderTokenResult(networkName, address, providers, errors = []) {
+        const result = document.getElementById('token-result');
+        const dexPair = providers?.dexPair;
+        const geckoPool = providers?.geckoPool;
+        const dexFields = dexPair
+          ? `<div><strong>DexScreener · ${escapeHtml(dexPair.dexId || 'DEX')}</strong><br>Пара: ${escapeHtml(dexPair.baseToken?.symbol || 'N/A')}/${escapeHtml(dexPair.quoteToken?.symbol || 'N/A')} · ${escapeHtml(dexPair.chainId)}<br>Liquidity: ${number(dexPair.liquidity?.usd) == null ? 'N/A' : `$${formatCompact(number(dexPair.liquidity.usd))}`} · FDV: ${number(dexPair.fdv) == null ? 'N/A' : `$${formatCompact(number(dexPair.fdv))}`} · Market cap: ${number(dexPair.marketCap) == null ? 'N/A' : `$${formatCompact(number(dexPair.marketCap))}`}<br>${dexPair.url ? `<a href="${escapeHtml(dexPair.url)}" target="_blank" rel="noopener noreferrer">Відкрити пару</a>` : ''}</div>`
+          : `<div><strong>DexScreener:</strong> ${errors.some(item => item.source === 'DexScreener') ? `API ERROR · ${escapeHtml(errors.find(item => item.source === 'DexScreener').message)}` : 'N/A — пару для точної адреси не знайдено'}</div>`;
+        const geckoAttributes = geckoPool?.attributes;
+        const geckoFields = geckoAttributes
+          ? `<div><strong>GeckoTerminal · top pool by reported reserve</strong><br>Liquidity / reserve: ${number(geckoAttributes.reserve_in_usd) == null ? 'N/A' : `$${formatCompact(number(geckoAttributes.reserve_in_usd))}`} · FDV: ${number(geckoAttributes.fdv_usd) == null ? 'N/A' : `$${formatCompact(number(geckoAttributes.fdv_usd))}`} · Market cap: ${number(geckoAttributes.market_cap_usd) == null ? 'N/A' : `$${formatCompact(number(geckoAttributes.market_cap_usd))}`}<br>Знайдено пулів: ${providers.geckoPoolCount} · GeckoTerminal</div>`
+          : `<div><strong>GeckoTerminal:</strong> ${errors.some(item => item.source === 'GeckoTerminal') ? `API ERROR · ${escapeHtml(errors.find(item => item.source === 'GeckoTerminal').message)}` : 'N/A — пули для точної адреси не знайдені'}</div>`;
+        const errorMessage = errors.length && !dexPair && !geckoPool
+          ? `<p class="api-error">Провайдери тимчасово не відповіли. Повторіть перевірку пізніше.</p>`
+          : '';
+        result.innerHTML = `<strong>Точний запит:</strong> ${escapeHtml(networkName)} · <code>${escapeHtml(address)}</code><br><strong>Provider lookup, не аудит контракту.</strong>${errorMessage}<div class="token-fields">${dexFields}${geckoFields}<div><strong>Circulating supply:</strong> N/A — не надається цими перевіреними відповідями.</div><div><strong>Unlock information:</strong> N/A — календар розблокувань не надається цими джерелами.</div></div><small>Не зіставляємо за назвою або тикером. Ліквідність, FDV та market cap показані лише з точного network/address lookup та з підписом джерела.</small>`;
+      }
+
+      async function verifyToken(networkKey, address) {
+        const network = TOKEN_NETWORKS[networkKey];
+        const cacheKey = `${networkKey}:${address.toLowerCase()}`;
+        const cached = tokenCache.get(cacheKey);
+        if (cached && Date.now() - cached.time < TOKEN_CACHE_MS) {
+          renderTokenResult(network.label, address, cached.data, cached.errors);
+          return;
+        }
+        const result = document.getElementById('token-result');
+        result.textContent = 'Перевіряємо точну адресу через DexScreener і GeckoTerminal…';
+        const dexUrl = `https://api.dexscreener.com/token-pairs/v1/${encodeURIComponent(network.dex)}/${encodeURIComponent(address)}`;
+        const geckoUrl = `https://api.geckoterminal.com/api/v2/networks/${encodeURIComponent(network.gecko)}/tokens/${encodeURIComponent(address)}/pools?page=1`;
+        const responses = await Promise.allSettled([getPublicJson(dexUrl), getPublicJson(geckoUrl)]);
+        const errors = [];
+        const dexPairs = responses[0].status === 'fulfilled' ? responses[0].value : null;
+        const geckoPools = responses[1].status === 'fulfilled' ? responses[1].value : null;
+        if (responses[0].status === 'rejected') errors.push({ source: 'DexScreener', message: responses[0].reason?.message || 'request failed' });
+        if (responses[1].status === 'rejected') errors.push({ source: 'GeckoTerminal', message: responses[1].reason?.message || 'request failed' });
+        const providers = tokenProviderData(network, address, dexPairs, geckoPools);
+        tokenCache.set(cacheKey, { time: Date.now(), data: providers, errors });
+        renderTokenResult(network.label, address, providers, errors);
       }
 
       function escapeHtml(value) {
@@ -479,6 +591,7 @@
         return {
           openInterest, openInterestUsd, oiChange, oiGrowth, longLiquidations, shortLiquidations,
           lsr, topLsrAccount, topLsrSize, takerLsr, squeeze, bearish, entry, shortQuality,
+          entryQualityScore: shortQuality,
           fundingMean, fundingStd, status, statusClass
         };
       }
@@ -531,9 +644,9 @@
             return `${date}: LONG ${longValue == null ? unavailable() : `${formatCompact(longValue)} USDT quote`} / SHORT ${shortValue == null ? unavailable() : `${formatCompact(shortValue)} USDT quote`}`;
           }).join('<br>');
           const missingShortQuality = assessed.shortQuality == null ? 'N/A — недостатньо даних' : `${assessed.shortQuality}/100`;
-          const shortQualityScore = assessed.shortQuality == null
+          const shortQualityScore = assessed.entryQualityScore == null
             ? null
-            : { score: assessed.shortQuality, known: 3, total: 3 };
+            : { score: assessed.entryQualityScore, known: 3, total: 3 };
           return `<tr>
             <td class="symbol">${escapeHtml(symbol)}<small>USDT perpetual · Gate.io</small></td>
             <td class="metric">${cellValue(formatPrice(number(ticker.last)), 'Last · Gate.io')}${metric(`${formatPrice(number(ticker.mark_price))} / ${formatPrice(number(ticker.index_price))}`, `Mark / Index · Gate.io`)}</td>
@@ -542,7 +655,7 @@
             <td class="metric">${cellValue(assessed.openInterest == null ? unavailable() : `${formatCompact(assessed.openInterest)} контрактів`, 'OI · Gate.io contract_stats')}<small>${assessed.openInterestUsd == null ? unavailable() : `OI value ${formatCompact(assessed.openInterestUsd)} USDT quote · Gate.io`}</small><small>Зміна 4H: ${percent(assessed.oiChange)} · Gate.io contract_stats</small></td>
             <td class="metric">${fourDetails}<small>Funding pressure: ${funding == null ? unavailable() : funding > 0 ? 'positive' : 'not positive'} · Gate.io</small></td>
             <td class="metric">${fifteenDetails}<small>Останній завершений 4H період: ${liquidationText} · Gate.io contract_stats</small><small>Історія liquidation 4H:<br>${liquidationHistory || unavailable()} · Gate.io contract_stats</small></td>
-            <td><div class="score-grid">${scoreCard('SQUEEZE EVIDENCE', assessed.squeeze)}${scoreCard('BEARISH CONFIRMATION', assessed.bearish)}${scoreCard('SHORT ENTRY QUALITY', shortQualityScore)}</div><small>Якість точки входу: ${assessed.entry.score == null ? 'N/A — недостатньо даних' : `${assessed.entry.score}/100`} · комбінований score: ${missingShortQuality}</small></td>
+            <td><div class="score-grid">${scoreCard('SQUEEZE SCORE', assessed.squeeze)}${scoreCard('BEARISH CONFIRMATION SCORE', assessed.bearish)}${scoreCard('ENTRY QUALITY SCORE', shortQualityScore)}</div><small>Окрема якість точки входу: ${assessed.entry.score == null ? 'N/A — недостатньо даних' : `${assessed.entry.score}/100`}</small></td>
             <td><span class="badge ${assessed.statusClass}">${assessed.status}</span><small>Top L/S accounts ${ratioDisplay(assessed.topLsrAccount)} · top positions ${ratioDisplay(assessed.topLsrSize)} · L/S accounts ${ratioDisplay(assessed.lsr)} · L/S taker ${ratioDisplay(assessed.takerLsr)} · Gate.io contract_stats</small>${sources}${apiError ? '<small class="api-error">API ERROR · показані останні успішні дані</small>' : ''}</td>
             <td>${removeButton}</td>
           </tr>`;
@@ -720,6 +833,23 @@
       });
 
       document.getElementById('refresh').addEventListener('click', refresh);
+      document.getElementById('token-form').addEventListener('submit', async event => {
+        event.preventDefault();
+        const networkKey = document.getElementById('token-network').value;
+        const addressInput = document.getElementById('token-address');
+        const address = addressInput.value.trim();
+        if (!tokenAddressValid(TOKEN_NETWORKS[networkKey], address)) {
+          document.getElementById('token-result').textContent = networkKey === 'solana'
+            ? 'Введіть коректну адресу Solana (base58, 32–44 символи).'
+            : 'Введіть точну EVM contract address: 0x та 40 шістнадцяткових символів.';
+          return;
+        }
+        try {
+          await verifyToken(networkKey, address);
+        } catch (error) {
+          document.getElementById('token-result').textContent = `API ERROR · ${error.message || 'Token providers are unavailable'}. Дані не отримані.`;
+        }
+      });
       renderWatchlist(new Map());
       refresh();
       window.setInterval(refresh, REFRESH_MS);
