@@ -305,6 +305,7 @@
       }
 
       function tokenAddressValid(network, address) {
+        if (!network || !address) return false;
         if (network.address === 'evm') return /^0x[a-fA-F0-9]{40}$/.test(address);
         return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address);
       }
@@ -333,7 +334,7 @@
         const dexPair = providers?.dexPair;
         const geckoPool = providers?.geckoPool;
         const dexFields = dexPair
-          ? `<div><strong>DexScreener · ${escapeHtml(dexPair.dexId || 'DEX')}</strong><br>Пара: ${escapeHtml(dexPair.baseToken?.symbol || 'N/A')}/${escapeHtml(dexPair.quoteToken?.symbol || 'N/A')} · ${escapeHtml(dexPair.chainId)}<br>Liquidity: ${number(dexPair.liquidity?.usd) == null ? 'N/A' : `$${formatCompact(number(dexPair.liquidity.usd))}`} · FDV: ${number(dexPair.fdv) == null ? 'N/A' : `$${formatCompact(number(dexPair.fdv))}`} · Market cap: ${number(dexPair.marketCap) == null ? 'N/A' : `$${formatCompact(number(dexPair.marketCap))}`}<br>${dexPair.url ? `<a href="${escapeHtml(dexPair.url)}" target="_blank" rel="noopener noreferrer">Відкрити пару</a>` : ''}</div>`
+          ? `<div><strong>DexScreener · ${escapeHtml(dexPair.dexId || 'DEX')}</strong><br>Пара: ${escapeHtml(dexPair.baseToken?.symbol || 'N/A')}/${escapeHtml(dexPair.quoteToken?.symbol || 'N/A')} · ${escapeHtml(dexPair.chainId)}<br>Liquidity: ${number(dexPair.liquidity?.usd) == null ? 'N/A' : `$${formatCompact(number(dexPair.liquidity.usd))}`} · FDV: ${number(dexPair.fdv) == null ? 'N/A' : `$${formatCompact(number(dexPair.fdv))}`} · Market cap: ${number(dexPair.marketCap) == null ? 'N/A' : `$${formatCompact(number(dexPair.marketCap))}`}<br>${typeof dexPair.url === 'string' && dexPair.url.startsWith('https://dexscreener.com/') ? `<a href="${escapeHtml(dexPair.url)}" target="_blank" rel="noopener noreferrer">Відкрити пару</a>` : ''}</div>`
           : `<div><strong>DexScreener:</strong> ${errors.some(item => item.source === 'DexScreener') ? `API ERROR · ${escapeHtml(errors.find(item => item.source === 'DexScreener').message)}` : 'N/A — пару для точної адреси не знайдено'}</div>`;
         const geckoAttributes = geckoPool?.attributes;
         const geckoFields = geckoAttributes
