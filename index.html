@@ -1,0 +1,514 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b1020">
+  <title>Радар ринку — моніторинг ф'ючерсів</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0b1020;
+      color: #e8edf8;
+      font-synthesis: none;
+      --muted: #95a1b8;
+      --panel: #121a2d;
+      --line: #26324a;
+      --green: #44d7a8;
+      --red: #ff7185;
+      --amber: #ffca72;
+      --blue: #87aaff;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-width: 320px; }
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+    .shell { width: min(1440px, 100% - 40px); margin: 0 auto; padding: 34px 0 50px; }
+    header { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-bottom: 26px; }
+    .eyebrow { color: var(--green); text-transform: uppercase; letter-spacing: .16em; font-size: 11px; font-weight: 800; }
+    h1 { margin: 7px 0 8px; font-size: clamp(28px, 4vw, 42px); letter-spacing: -.04em; }
+    .intro, .subtle { color: var(--muted); line-height: 1.55; }
+    .intro { max-width: 760px; margin: 0; }
+    .toolbar { display: flex; align-items: center; gap: 10px; }
+    .status { color: var(--muted); font-size: 12px; white-space: nowrap; }
+    .button, .add-button { border: 1px solid #34425e; border-radius: 9px; color: #e8edf8; background: #18233a; padding: 10px 14px; font-weight: 700; }
+    .button:hover, .add-button:hover { background: #22304c; }
+    .button:disabled { opacity: .55; cursor: wait; }
+    .notice { border: 1px solid #68552d; background: #2a2418; color: #f5d89c; border-radius: 11px; padding: 13px 16px; font-size: 13px; line-height: 1.5; margin: 18px 0 22px; }
+    .notice strong { color: #ffe7b5; }
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
+    .stat, .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 13px; }
+    .stat { padding: 15px 17px; }
+    .stat-label { color: var(--muted); font-size: 12px; }
+    .stat-value { font-size: 21px; font-weight: 750; margin-top: 7px; }
+    .layout { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(280px, .85fr); gap: 16px; align-items: start; }
+    .panel { padding: 18px; margin-bottom: 16px; }
+    .panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 15px; }
+    h2 { margin: 0; font-size: 16px; letter-spacing: -.01em; }
+    .count { color: var(--muted); font-size: 12px; }
+    .add-form { display: flex; gap: 8px; margin-bottom: 15px; }
+    .add-form input { min-width: 0; flex: 1; border: 1px solid #34425e; border-radius: 9px; color: #e8edf8; background: #0c1426; padding: 10px 12px; text-transform: uppercase; }
+    .add-form input:focus { outline: 2px solid #5279c9; border-color: transparent; }
+    .add-button { color: #07150f; background: var(--green); border-color: var(--green); }
+    .add-button:hover { background: #69e5bd; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; min-width: 820px; text-align: left; }
+    th { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .07em; font-weight: 700; padding: 10px 9px; border-bottom: 1px solid var(--line); }
+    td { padding: 13px 9px; border-bottom: 1px solid #202b41; vertical-align: top; font-size: 13px; }
+    tr:last-child td { border-bottom: 0; }
+    .symbol { font-weight: 800; font-size: 14px; }
+    .symbol small { display: block; margin-top: 4px; color: var(--muted); font-weight: 500; font-size: 11px; }
+    .green { color: var(--green); }
+    .red { color: var(--red); }
+    .amber { color: var(--amber); }
+    .muted { color: var(--muted); }
+    .badge { display: inline-flex; border-radius: 999px; background: #202b41; color: var(--muted); padding: 5px 8px; font-size: 11px; font-weight: 700; max-width: 200px; }
+    .badge.green-bg { color: var(--green); background: #15352f; }
+    .badge.red-bg { color: var(--red); background: #3a202b; }
+    .badge.amber-bg { color: var(--amber); background: #3a301e; }
+    .delete { border: 0; background: transparent; color: var(--muted); padding: 4px 7px; border-radius: 6px; }
+    .delete:hover { color: var(--red); background: #3a202b; }
+    .empty, .loading, .error { color: var(--muted); padding: 22px 8px; text-align: center; line-height: 1.5; }
+    .error { color: #ffadba; }
+    .mover-list { display: grid; gap: 9px; }
+    .mover { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; border: 1px solid #25314a; border-radius: 9px; padding: 10px; }
+    .mover-name { font-weight: 750; font-size: 13px; }
+    .mover-vol { color: var(--muted); font-size: 11px; margin-top: 3px; }
+    .mover-change { font-size: 12px; font-weight: 800; }
+    .mini-add { color: var(--blue); background: transparent; border: 1px solid #34425e; border-radius: 7px; padding: 5px 7px; font-size: 11px; }
+    .signal-box { border: 1px solid #34425e; border-radius: 10px; padding: 12px; margin-bottom: 9px; }
+    .signal-box:last-child { margin-bottom: 0; }
+    .signal-title { font-size: 13px; font-weight: 800; margin-bottom: 5px; }
+    .signal-copy { color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .legend { display: grid; gap: 10px; }
+    .legend-row { display: grid; grid-template-columns: 112px 1fr; gap: 10px; font-size: 12px; line-height: 1.5; }
+    .legend-row strong { color: #dce6f8; }
+    .source-groups { display: grid; gap: 15px; }
+    .source-group h3 { margin: 0 0 7px; font-size: 13px; }
+    .source-links { display: flex; flex-wrap: wrap; gap: 7px; }
+    .source-links a { color: var(--blue); border: 1px solid #34425e; border-radius: 7px; padding: 6px 8px; font-size: 11px; text-decoration: none; }
+    .source-links a:hover { color: #c5d5ff; background: #1d2a43; }
+    .source-group p { color: var(--muted); font-size: 11px; line-height: 1.5; margin: 7px 0 0; }
+    footer { color: var(--muted); font-size: 11px; line-height: 1.6; padding: 3px 2px; }
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+      .stats { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 600px) {
+      .shell { width: calc(100% - 24px); padding-top: 22px; }
+      header { display: block; }
+      .toolbar { margin-top: 16px; justify-content: space-between; }
+      .stats { gap: 8px; }
+      .stat { padding: 12px; }
+      .stat-value { font-size: 18px; }
+      .panel { padding: 14px; }
+      .legend-row { grid-template-columns: 1fr; gap: 2px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div>
+        <div class="eyebrow">Ринковий радар · Binance USDⓈ-M</div>
+        <h1>Сигнали, а не передбачення</h1>
+        <p class="intro">Спостерігайте за ф'ючерсними парами, незвичними рухами й умовами можливого перегріву. Додавайте власні пари або знаходьте активні ринки у сканері.</p>
+      </div>
+      <div class="toolbar">
+        <span class="status" id="updated">Завантаження даних…</span>
+        <button class="button" id="refresh" type="button">Оновити</button>
+      </div>
+    </header>
+
+    <div class="notice"><strong>Важливо:</strong> це інформаційний інструмент, не інвестиційна порада. «Безпечного шорту» не існує: сигнали запізнюються, а ціна може продовжити зростання. Розрахунковий діапазон — лише зона для перевірки сценарію, не рекомендація відкривати угоду.</div>
+
+    <section class="stats" aria-label="Зведення ринку">
+      <div class="stat"><div class="stat-label">Пар у списку</div><div class="stat-value" id="watch-count">0</div></div>
+      <div class="stat"><div class="stat-label">Різкі рухи · зміна 24 год ≥ 8%</div><div class="stat-value" id="mover-count">—</div></div>
+      <div class="stat"><div class="stat-label">Ринкові аномалії · не ончейн-гаманці</div><div class="stat-value" id="whale-count">—</div></div>
+      <div class="stat"><div class="stat-label">Інтервал оновлення</div><div class="stat-value">60 с</div></div>
+    </section>
+
+    <div class="layout">
+      <div>
+        <section class="panel">
+          <div class="panel-heading"><h2>Мій список спостереження</h2><span class="count" id="list-caption">Зберігається у цьому браузері</span></div>
+          <form class="add-form" id="add-form">
+            <input id="symbol-input" type="text" autocomplete="off" spellcheck="false" aria-label="Символ ф'ючерсної пари" placeholder="Наприклад, AGTUSDT">
+            <button class="add-button" type="submit">Додати пару</button>
+          </form>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Пара</th><th>Ціна</th><th>Зміна 24г</th><th>Фандінг</th><th>Відкритий інтерес</th><th>RSI · 1г</th><th>Оцінка / зона шорту</th><th></th></tr></thead>
+              <tbody id="watch-body"><tr><td colspan="8" class="loading">Отримуємо ринкові дані…</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+        <section class="panel">
+          <div class="panel-heading"><h2>Сканер спекулятивних рухів</h2><span class="count">Безстрокові USDT-пари · зміна 24г ≥ 8%</span></div>
+          <div class="mover-list" id="movers"><div class="loading">Завантаження списку ринків…</div></div>
+        </section>
+      </div>
+      <aside>
+        <section class="panel">
+          <div class="panel-heading"><h2>Ринкова аномалія</h2><span class="count">не ідентифікує гаманець</span></div>
+          <div id="whale-alerts"><div class="loading">Перевіряємо обсяг та відкритий інтерес…</div></div>
+        </section>
+        <section class="panel">
+          <div class="panel-heading"><h2>Як читати оцінку</h2></div>
+          <div class="legend">
+            <div class="legend-row"><strong>Кандидат на шорт</strong><span>Перегрітий RSI, позитивний фандінг, зростання OI та близькість до локального опору. Потрібне підтвердження розвороту.</span></div>
+            <div class="legend-row"><strong>Сквіз можливий</strong><span>Ціна зростає при від'ємному фандінгу або скороченні OI — шорти можуть закриватися. Не шортити навмання.</span></div>
+            <div class="legend-row"><strong>Зона входу</strong><span>Орієнтовний коридор біля максимуму попередніх 24 годин формується лише для кандидата. Стоп-сценарій — вище локального максимуму.</span></div>
+            <div class="legend-row"><strong>Недостатньо даних</strong><span>Немає попереднього знімка для зміни OI, технічних даних або ринок недоступний на цій біржі.</span></div>
+          </div>
+        </section>
+        <section class="panel">
+          <div class="panel-heading"><h2>Як перевірити «мертвого кита»</h2></div>
+          <div class="signal-copy">«Мертвий кит» — це гаманець із великим балансом відносно обігу або добового обсягу, який місяцями чи роками був неактивним, а потім переказав токени. Щоб підтвердити такий випадок, перевірте історію та вік адреси в блокчейн-оглядачі, розмір переказу й мітку адреси (біржа/OTC) в Arkham або Whale Alert, а також можливий зв'язок із командою, ранніми інвесторами чи розблокуванням. Переказ не доводить продажу: потрібне підтвердження кількома джерелами. Цей віджет не читає історію адрес і не виявляє «мертвих китів».</div>
+        </section>
+        <section class="panel">
+          <div class="panel-heading"><h2>Джерела для перевірки</h2></div>
+          <div class="source-groups">
+            <div class="source-group">
+              <h3>Гаманці, перекази й ончейн-вік</h3>
+              <div class="source-links">
+                <a href="https://whale-alert.io/" target="_blank" rel="noopener noreferrer">Whale Alert</a>
+                <a href="https://x.com/lookonchain" target="_blank" rel="noopener noreferrer">Lookonchain · X</a>
+                <a href="https://intel.arkm.com/" target="_blank" rel="noopener noreferrer">Arkham</a>
+                <a href="https://app.nansen.ai/" target="_blank" rel="noopener noreferrer">Nansen</a>
+                <a href="https://etherscan.io/" target="_blank" rel="noopener noreferrer">Etherscan</a>
+                <a href="https://bscscan.com/" target="_blank" rel="noopener noreferrer">BscScan</a>
+                <a href="https://debank.com/" target="_blank" rel="noopener noreferrer">DeBank</a>
+                <a href="https://dune.com/" target="_blank" rel="noopener noreferrer">Dune</a>
+                <a href="https://glassnode.com/" target="_blank" rel="noopener noreferrer">Glassnode</a>
+                <a href="https://app.santiment.net/" target="_blank" rel="noopener noreferrer">Santiment</a>
+              </div>
+              <p>Звіряйте мережу та адресу контракту; мітки й індикатори віку можуть бути неповними. Частина функцій платна.</p>
+            </div>
+            <div class="source-group">
+              <h3>Фандінг, OI та ліквідації</h3>
+              <div class="source-links">
+                <a href="https://www.coinglass.com/" target="_blank" rel="noopener noreferrer">CoinGlass</a>
+                <a href="https://coinalyze.net/" target="_blank" rel="noopener noreferrer">Coinalyze</a>
+                <a href="https://laevitas.ch/" target="_blank" rel="noopener noreferrer">Laevitas</a>
+                <a href="https://www.tradingview.com/" target="_blank" rel="noopener noreferrer">TradingView</a>
+                <a href="https://www.gate.io/" target="_blank" rel="noopener noreferrer">Gate</a>
+              </div>
+              <p>Порівнюйте метрики на тій самій біржі, для того самого контракту й часового інтервалу.</p>
+            </div>
+            <div class="source-group">
+              <h3>Ціна, ліквідність і розблокування</h3>
+              <div class="source-links">
+                <a href="https://www.coingecko.com/" target="_blank" rel="noopener noreferrer">CoinGecko</a>
+                <a href="https://coinmarketcap.com/" target="_blank" rel="noopener noreferrer">CoinMarketCap</a>
+                <a href="https://dexscreener.com/" target="_blank" rel="noopener noreferrer">DexScreener</a>
+                <a href="https://www.geckoterminal.com/" target="_blank" rel="noopener noreferrer">GeckoTerminal</a>
+                <a href="https://tokenomist.ai/" target="_blank" rel="noopener noreferrer">Tokenomist</a>
+                <a href="https://cryptorank.io/" target="_blank" rel="noopener noreferrer">CryptoRank</a>
+              </div>
+              <p>Зіставляйте циркуляційну капіталізацію, FDV, ліквідність пулу та календар вестингу; перевіряйте розбіжності цін.</p>
+            </div>
+            <div class="source-group">
+              <h3>Новини та безпека контракту</h3>
+              <div class="source-links">
+                <a href="https://www.panewslab.com/" target="_blank" rel="noopener noreferrer">PANews</a>
+                <a href="https://followin.io/" target="_blank" rel="noopener noreferrer">Followin</a>
+                <a href="https://www.theblock.co/" target="_blank" rel="noopener noreferrer">The Block</a>
+                <a href="https://www.coindesk.com/" target="_blank" rel="noopener noreferrer">CoinDesk</a>
+                <a href="https://gopluslabs.io/" target="_blank" rel="noopener noreferrer">GoPlus Security</a>
+                <a href="https://tokensniffer.com/" target="_blank" rel="noopener noreferrer">Token Sniffer</a>
+              </div>
+              <p>Підтверджуйте новини офіційними каналами проєкту, а результати сканерів — кодом контракту в оглядачі мережі.</p>
+            </div>
+          </div>
+        </section>
+      </aside>
+    </div>
+    <footer>Дані: публічний API Binance USDⓈ-M Futures, лише для безстрокових контрактів у USDT. Ціна, обсяг, фандінг і OI належать цій біржі й можуть відрізнятися від спотових цін та інших джерел. RSI і локальний максимум обчислюються з годинних свічок. Дані не є персоналізованими; перевіряйте ринок самостійно.</footer>
+  </main>
+  <script>
+    (() => {
+      const API = 'https://fapi.binance.com';
+      const DEFAULT_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'AGTUSDT'];
+      const STORAGE_KEY = 'market-radar-watchlist-v1';
+      const REFRESH_MS = 60_000;
+      const previous = new Map();
+      let watchlist = loadWatchlist();
+      let marketTickers = [];
+      let refreshBusy = false;
+
+      function loadWatchlist() {
+        try {
+          const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+          if (Array.isArray(saved)) return [...new Set(saved.filter(validSymbol))].slice(0, 30);
+        } catch (_) {}
+        return DEFAULT_SYMBOLS.slice();
+      }
+
+      function validSymbol(value) {
+        return typeof value === 'string' && /^[A-Z0-9]{2,20}USDT$/.test(value);
+      }
+
+      function saveWatchlist() {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(watchlist));
+      }
+
+      function number(value) {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : null;
+      }
+
+      function formatPrice(value) {
+        if (value == null) return '—';
+        return new Intl.NumberFormat('uk-UA', { maximumSignificantDigits: 7 }).format(value);
+      }
+
+      function formatCompact(value) {
+        if (value == null) return '—';
+        return new Intl.NumberFormat('uk-UA', { notation: 'compact', maximumFractionDigits: 2 }).format(value);
+      }
+
+      function percent(value, digits = 2) {
+        if (value == null) return '—';
+        return `${value > 0 ? '+' : ''}${value.toFixed(digits)}%`;
+      }
+
+      async function getJson(path) {
+        const response = await fetch(`${API}${path}`);
+        if (!response.ok) throw new Error(`Помилка API: ${response.status}`);
+        return response.json();
+      }
+
+      function rsiFromKlines(klines, period = 14) {
+        if (!Array.isArray(klines) || klines.length < period + 1) return null;
+        let gains = 0;
+        let losses = 0;
+        for (let i = klines.length - period; i < klines.length; i++) {
+          const diff = Number(klines[i][4]) - Number(klines[i - 1][4]);
+          if (diff > 0) gains += diff;
+          else losses -= diff;
+        }
+        if (losses === 0) return gains === 0 ? 50 : 100;
+        const rs = (gains / period) / (losses / period);
+        return 100 - 100 / (1 + rs);
+      }
+
+      function analyzeKlines(klines) {
+        if (!Array.isArray(klines) || klines.length < 25) return { rsi: null, resistance: null, volumeRatio: null, candleMove: null };
+        const closed = klines.slice(0, -1);
+        const latest = closed[closed.length - 1];
+        const prior = closed.slice(-21, -1);
+        const averageVolume = prior.reduce((sum, candle) => sum + Number(candle[5]), 0) / prior.length;
+        const open = Number(latest[1]);
+        const close = Number(latest[4]);
+        return {
+          rsi: rsiFromKlines(closed),
+          resistance: Math.max(...closed.slice(-24).map(candle => Number(candle[2]))),
+          volumeRatio: averageVolume > 0 ? Number(latest[5]) / averageVolume : null,
+          candleMove: open > 0 ? (close - open) / open * 100 : null
+        };
+      }
+
+      function getShortAssessment(data, oiChange) {
+        const conditions = [
+          data.rsi != null && data.rsi >= 70,
+          data.funding != null && data.funding > 0,
+          oiChange != null && oiChange > 0,
+          data.resistance != null && data.price != null && data.price >= data.resistance * 0.985
+        ];
+        const score = conditions.filter(Boolean).length;
+        if (data.funding != null && data.funding < 0 && data.priceChange > 0) {
+          return { label: 'Ризик сквізу', className: 'red-bg', range: null, score };
+        }
+        if (score >= 3 && data.resistance != null) {
+          return {
+            label: `Кандидат · ${score}/4`,
+            className: 'amber-bg',
+            range: [data.resistance * 0.995, data.resistance * 1.005],
+            score
+          };
+        }
+        return { label: `Очікувати · ${score}/4`, className: '', range: null, score };
+      }
+
+      function renderWatchlist(dataBySymbol) {
+        const body = document.getElementById('watch-body');
+        document.getElementById('watch-count').textContent = watchlist.length;
+        if (!watchlist.length) {
+          body.innerHTML = '<tr><td colspan="8" class="empty">Список порожній. Додайте пару або скористайтеся сканером нижче.</td></tr>';
+          return;
+        }
+        body.innerHTML = watchlist.map(symbol => {
+          const data = dataBySymbol.get(symbol);
+          if (!data || data.error) {
+            return `<tr><td class="symbol">${symbol}<small>дані недоступні</small></td><td colspan="6" class="muted">${escapeHtml(data?.error || 'Очікуємо відповідь біржі')}</td><td><button class="delete" data-remove="${symbol}" aria-label="Видалити ${symbol}">✕</button></td></tr>`;
+          }
+          const oiChange = data.oiChange;
+          const assessment = getShortAssessment(data, oiChange);
+          const priceColor = data.priceChange >= 0 ? 'green' : 'red';
+          const rsiColor = data.rsi >= 70 ? 'amber' : 'muted';
+          const fundingPct = data.funding == null ? null : data.funding * 100;
+          const range = assessment.range ? `${formatPrice(assessment.range[0])}–${formatPrice(assessment.range[1])}` : '—';
+          const zoneHelp = assessment.range ? `Локальний максимум: ${formatPrice(data.resistance)} · стоп-сценарій вище нього` : assessment.label === 'Ризик сквізу' ? 'Не відкривати шорт без підтвердження' : 'Потрібні додаткові сигнали';
+          return `<tr>
+            <td class="symbol">${symbol}<small>USDT · безстроковий</small></td>
+            <td>${formatPrice(data.price)}</td>
+            <td class="${priceColor}">${percent(data.priceChange)}</td>
+            <td class="${fundingPct > 0 ? 'amber' : fundingPct < 0 ? 'green' : 'muted'}">${percent(fundingPct, 4)}</td>
+            <td>${formatCompact(data.openInterest)}<small class="${oiChange > 0 ? 'green' : oiChange < 0 ? 'red' : 'muted'}">${percent(oiChange)} з минулого оновлення</small></td>
+            <td class="${rsiColor}">${data.rsi == null ? '—' : data.rsi.toFixed(1)}</td>
+            <td><span class="badge ${assessment.className}">${assessment.label}</span><small>${range}</small><small class="muted">${zoneHelp}</small></td>
+            <td><button class="delete" data-remove="${symbol}" aria-label="Видалити ${symbol}">✕</button></td>
+          </tr>`;
+        }).join('');
+      }
+
+      function renderMovers() {
+        const movers = marketTickers
+          .filter(item => item.symbol.endsWith('USDT') && Math.abs(Number(item.priceChangePercent)) >= 8 && Number(item.quoteVolume) >= 5_000_000)
+          .sort((a, b) => Math.abs(Number(b.priceChangePercent)) - Math.abs(Number(a.priceChangePercent)))
+          .slice(0, 10);
+        document.getElementById('mover-count').textContent = movers.length;
+        const container = document.getElementById('movers');
+        if (!movers.length) {
+          container.innerHTML = '<div class="empty">Зараз не знайдено пар зі зміною ≥ 8% та обсягом ≥ 5 млн USDT за 24 години.</div>';
+          return;
+        }
+        container.innerHTML = movers.map(item => {
+          const symbol = escapeHtml(item.symbol);
+          const isAdded = watchlist.includes(item.symbol);
+          return `<div class="mover"><div><div class="mover-name">${symbol}</div><div class="mover-vol">Обсяг 24г: ${formatCompact(Number(item.quoteVolume))} USDT</div></div><div class="mover-change ${Number(item.priceChangePercent) >= 0 ? 'green' : 'red'}">${percent(Number(item.priceChangePercent))}</div><button class="mini-add" data-add="${symbol}" ${isAdded ? 'disabled' : ''}>${isAdded ? 'У списку' : '+ Додати'}</button></div>`;
+        }).join('');
+      }
+
+      function renderWhaleAlerts(dataBySymbol) {
+        const alerts = watchlist.map(symbol => ({ symbol, data: dataBySymbol.get(symbol) }))
+          .filter(item => item.data && !item.data.error && item.data.whaleSignal);
+        document.getElementById('whale-count').textContent = alerts.length;
+        const container = document.getElementById('whale-alerts');
+        if (!alerts.length) {
+          container.innerHTML = '<div class="empty">Немає ринкової аномалії за заданими умовами. Це не означає, що великі учасники неактивні: показник є лише деривативною евристикою, а не даними про гаманець.</div>';
+          return;
+        }
+        container.innerHTML = alerts.map(({ symbol, data }) => `<div class="signal-box"><div class="signal-title amber">⚠ ${escapeHtml(symbol)} · аномальний рух і зниження OI</div><div class="signal-copy">Годинний обсяг у ${data.volumeRatio.toFixed(1)} раза вищий за середній; рух свічки ${percent(data.candleMove)}; OI знизився на ${percent(Math.abs(data.oiChange))} від попереднього опитування. Можливе закриття позицій. Це не ідентифікує гаманець і не підтверджує продаж.</div></div>`).join('');
+      }
+
+      function escapeHtml(value) {
+        return String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
+      }
+
+      async function fetchSymbol(symbol, tickerMap, premiumMap) {
+        try {
+          const [oiResult, candles] = await Promise.all([
+            getJson(`/fapi/v1/openInterest?symbol=${encodeURIComponent(symbol)}`),
+            getJson(`/fapi/v1/klines?symbol=${encodeURIComponent(symbol)}&interval=1h&limit=50`)
+          ]);
+          const ticker = tickerMap.get(symbol);
+          const premium = premiumMap.get(symbol);
+          if (!ticker || !premium) throw new Error('Пара відсутня серед активних ф' + 'ючерсних ринків');
+          const openInterest = number(oiResult.openInterest);
+          const old = previous.get(symbol);
+          const oiChange = old && old.oi > 0 && openInterest != null ? (openInterest - old.oi) / old.oi * 100 : null;
+          const analyzed = analyzeKlines(candles);
+          const data = {
+            price: number(ticker.lastPrice),
+            priceChange: number(ticker.priceChangePercent),
+            funding: number(premium.lastFundingRate),
+            openInterest,
+            oiChange,
+            ...analyzed
+          };
+          data.whaleSignal = data.volumeRatio != null && data.volumeRatio >= 2.5 &&
+            Math.abs(data.candleMove || 0) >= 2 && oiChange != null && oiChange <= -1;
+          previous.set(symbol, { oi: openInterest, price: data.price });
+          return [symbol, data];
+        } catch (error) {
+          return [symbol, { error: error.message || 'Не вдалося отримати дані' }];
+        }
+      }
+
+      async function refresh() {
+        if (refreshBusy) return;
+        refreshBusy = true;
+        const refreshButton = document.getElementById('refresh');
+        refreshButton.disabled = true;
+        try {
+          const [tickers, premiums] = await Promise.all([
+            getJson('/fapi/v1/ticker/24hr'),
+            getJson('/fapi/v1/premiumIndex')
+          ]);
+          marketTickers = tickers;
+          const tickerMap = new Map(tickers.map(ticker => [ticker.symbol, ticker]));
+          const premiumMap = new Map(premiums.map(item => [item.symbol, item]));
+          const entries = await Promise.all(watchlist.map(symbol => fetchSymbol(symbol, tickerMap, premiumMap)));
+          const dataBySymbol = new Map(entries);
+          renderWatchlist(dataBySymbol);
+          renderMovers();
+          renderWhaleAlerts(dataBySymbol);
+          document.getElementById('updated').textContent = `Оновлено: ${new Intl.DateTimeFormat('uk-UA', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(new Date())}`;
+        } catch (error) {
+          document.getElementById('updated').textContent = 'Помилка з’єднання з біржею';
+          document.getElementById('watch-body').innerHTML = `<tr><td colspan="8" class="error">${escapeHtml(error.message || 'Не вдалося отримати дані. Перевірте підключення.')}</td></tr>`;
+          document.getElementById('movers').innerHTML = '<div class="error">Не вдалося завантажити ринковий сканер. Спробуйте оновити сторінку.</div>';
+        } finally {
+          refreshBusy = false;
+          refreshButton.disabled = false;
+        }
+      }
+
+      document.getElementById('add-form').addEventListener('submit', event => {
+        event.preventDefault();
+        const input = document.getElementById('symbol-input');
+        const symbol = input.value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+        if (!validSymbol(symbol)) {
+          input.setCustomValidity('Введіть символ безстрокової пари, що закінчується на USDT, наприклад AGTUSDT.');
+          input.reportValidity();
+          input.addEventListener('input', () => input.setCustomValidity(''), { once: true });
+          return;
+        }
+        if (watchlist.includes(symbol)) {
+          input.setCustomValidity('Ця пара вже є у списку.');
+          input.reportValidity();
+          input.addEventListener('input', () => input.setCustomValidity(''), { once: true });
+          return;
+        }
+        if (watchlist.length >= 30) {
+          input.setCustomValidity('Можна стежити максимум за 30 парами.');
+          input.reportValidity();
+          input.addEventListener('input', () => input.setCustomValidity(''), { once: true });
+          return;
+        }
+        watchlist.push(symbol);
+        saveWatchlist();
+        input.value = '';
+        renderWatchlist(new Map());
+        refresh();
+      });
+
+      document.addEventListener('click', event => {
+        const remove = event.target.closest('[data-remove]');
+        const add = event.target.closest('[data-add]');
+        if (remove) {
+          watchlist = watchlist.filter(symbol => symbol !== remove.dataset.remove);
+          previous.delete(remove.dataset.remove);
+          saveWatchlist();
+          renderWatchlist(new Map());
+          refresh();
+        }
+        if (add && !watchlist.includes(add.dataset.add) && watchlist.length < 30) {
+          watchlist.push(add.dataset.add);
+          saveWatchlist();
+          renderWatchlist(new Map());
+          refresh();
+        }
+      });
+
+      document.getElementById('refresh').addEventListener('click', refresh);
+      refresh();
+      window.setInterval(refresh, REFRESH_MS);
+    })();
+  </script>
+</body>
+</html>
