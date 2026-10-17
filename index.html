@@ -81,7 +81,7 @@
     .signal-box:last-child { margin-bottom: 0; }
     .signal-title { font-size: 13px; font-weight: 800; margin-bottom: 5px; }
     .signal-copy { color: var(--muted); font-size: 12px; line-height: 1.5; }
-    .metric small { display: block; margin-top: 4px; color: var(--muted); font-size: 10px; line-height: 1.4; }
+    .metric small, .score-card small { display: block; margin-top: 4px; color: var(--muted); font-size: 10px; line-height: 1.4; }
     .score-grid { display: grid; grid-template-columns: repeat(3, minmax(120px, 1fr)); gap: 8px; min-width: 420px; }
     .score-card { border: 1px solid #34425e; border-radius: 8px; padding: 8px; }
     .score-card strong { display: block; font-size: 10px; line-height: 1.4; }
@@ -173,9 +173,9 @@
         <section class="panel">
           <div class="panel-heading"><h2>Як читати оцінку</h2></div>
           <div class="legend">
-            <div class="legend-row"><strong>SQUEEZE EVIDENCE</strong><span>Тільки ознаки потенційного перегріву LONG: фандінг і його історія, OI, long/short-співвідношення, розширення ціни, обсяг, RSI та направлені ліквідації. Це не рекомендація SHORT.</span></div>
-            <div class="legend-row"><strong>BEARISH CONFIRMATION</strong><span>Окремо аналізує закриті 15m свічки, підтримку, sell volume, MACD/RSI, OI та підтверджені long-ліквідації.</span></div>
-            <div class="legend-row"><strong>SHORT ENTRY QUALITY</strong><span>Окремий комбінований показник. Високий Squeeze Evidence без bearish confirmation не створює статус входу.</span></div>
+            <div class="legend-row"><strong>SQUEEZE EVIDENCE</strong><span>Тільки ознаки потенційного перегріву LONG: positive/high funding, OI increase/abnormal growth ≥3%, L/S ≥1.5, 4H extension ≥3%, volume ≥1.5×, RSI ≥70, taker L/S ≥1.5 та short liquidation &gt; long liquidation і ≥0.1% OI quote. Кожен відомий фактор має однакову вагу; недоступні фактори виключаються з бази оцінки. Це не сигнал SHORT.</span></div>
+            <div class="legend-row"><strong>BEARISH CONFIRMATION</strong><span>Окремо оцінює закриті 15m свічку, close нижче локальної підтримки/рівня, sell volume +15%, bearish MACD, RSI deterioration, OI реакцію та перевагу long-ліквідацій.</span></div>
+            <div class="legend-row"><strong>SHORT ENTRY QUALITY</strong><span>35% squeeze + 45% bearish confirmation + 20% якості точки (закриття нижче рівня, bearish candle, sell volume та відстань не більш як 1.5 ATR). Статус входу вимагає окремо: score ≥65, squeeze ≥45, bearish ≥65, point quality ≥50.</span></div>
             <div class="legend-row"><strong>Без repaint</strong><span>RSI, MACD, EMA, обсяг та підтвердження використовують лише закриті 4H/15m свічки. Таймфрейми позначені окремо.</span></div>
           </div>
         </section>
@@ -231,17 +231,17 @@
       }
 
       function formatPrice(value) {
-        if (value == null) return 'N/A';
+        if (value == null) return unavailable();
         return new Intl.NumberFormat('uk-UA', { maximumSignificantDigits: 7 }).format(value);
       }
 
       function formatCompact(value) {
-        if (value == null) return 'N/A';
+        if (value == null) return unavailable();
         return new Intl.NumberFormat('uk-UA', { notation: 'compact', maximumFractionDigits: 2 }).format(value);
       }
 
       function percent(value, digits = 2) {
-        if (value == null) return 'N/A';
+        if (value == null) return unavailable();
         return `${value > 0 ? '+' : ''}${value.toFixed(digits)}%`;
       }
 
@@ -334,8 +334,9 @@
         const previous = candles[latestIndex - 1];
         const priorTwenty = candles.slice(Math.max(0, latestIndex - 20), latestIndex);
         const averageVolume = priorTwenty.length ? priorTwenty.reduce((sum, candle) => sum + candle.volume, 0) / priorTwenty.length : null;
-        const trueRanges = candles.slice(Math.max(1, latestIndex - 13), latestIndex + 1).map((candle, offset) => {
-          const previousClose = candles[Math.max(0, latestIndex - 13) + offset].close;
+        const trueRangeStart = Math.max(1, latestIndex - 13);
+        const trueRanges = candles.slice(trueRangeStart, latestIndex + 1).map((candle, offset) => {
+          const previousClose = candles[trueRangeStart + offset - 1].close;
           return Math.max(candle.high - candle.low, Math.abs(candle.high - previousClose), Math.abs(candle.low - previousClose));
         });
         const atr = trueRanges.length ? trueRanges.reduce((sum, value) => sum + value, 0) / trueRanges.length : null;
@@ -423,9 +424,10 @@
         ]);
 
         const priceFalling = fifteen?.latest && fifteen?.previous ? fifteen.latest.close < fifteen.previous.close : null;
-        const oiReaction = priceFalling == null || (oiChange == null && longLiquidations == null)
+        const liquidationDirectionKnown = longLiquidations != null && shortLiquidations != null;
+        const oiReaction = priceFalling == null || (oiChange == null && !liquidationDirectionKnown)
           ? null
-          : priceFalling && (oiChange > 0 || (longLiquidations != null && shortLiquidations != null && longLiquidations > shortLiquidations));
+          : priceFalling && ((oiChange != null && oiChange > 0) || (liquidationDirectionKnown && longLiquidations > shortLiquidations));
         const bearish = weightedScore([
           [15, fifteen?.bearishCandle ?? null],
           [15, fifteen?.support == null || fifteen?.latest == null ? null : fifteen.latest.close < fifteen.support],
@@ -455,16 +457,19 @@
         if (shortQuality >= 65 && squeeze.score >= 45 && bearish.score >= 65 && entry.score >= 50) {
           status = '⚠️ ВХІД НА ПРОДАЖ';
           statusClass = 'red-bg';
-        } else if (squeeze.score >= 75 && bearish.score < 50) {
+        } else if (squeeze.score == null || bearish.score == null) {
+          status = '⏳ ЧЕКАЄМО ПІДТВЕРДЖЕННЯ';
+          statusClass = 'amber-bg';
+        } else if (squeeze.score >= 75 && bearish.score != null && bearish.score < 50) {
           status = '⛔ НЕБЕЗПЕЧНИЙ SHORT';
           statusClass = 'red-bg';
-        } else if (squeeze.score >= 65 && shortLiquidations > 0 && shortLiquidations > longLiquidations) {
+        } else if (squeeze.score >= 65 && shortLiquidations != null && longLiquidations != null && shortLiquidations > 0 && shortLiquidations > longLiquidations) {
           status = '🔴 СКВІЗ АКТИВНИЙ';
           statusClass = 'red-bg';
-        } else if (squeeze.score >= 60 && bearish.score < 55) {
+        } else if (squeeze.score >= 60 && bearish.score != null && bearish.score < 55) {
           status = '🟠 СКВІЗ МОЖЛИВИЙ';
           statusClass = 'amber-bg';
-        } else if ((squeeze.score >= 40 && bearish.score >= 40) || (squeeze.score >= 40 && bearish.score < 55) || bearish.score >= 40) {
+        } else if ((squeeze.score >= 40 && bearish.score >= 40) || bearish.score >= 40) {
           status = '⏳ ЧЕКАЄМО ПІДТВЕРДЖЕННЯ';
           statusClass = 'amber-bg';
         } else if (squeeze.score >= 40) {
@@ -496,13 +501,13 @@
           const data = dataBySymbol.get(symbol);
           const removeButton = `<button class="delete" data-remove="${escapeHtml(symbol)}" aria-label="Видалити ${escapeHtml(symbol)}">✕</button>`;
           if (!data) {
-            return `<tr><td class="symbol">${escapeHtml(symbol)}<small>Gate.io USDT perpetual</small></td><td colspan="8" class="error">API ERROR · Дані недоступні; останнє успішне оновлення: ${lastSuccessfulUpdate ? formatTime(lastSuccessfulUpdate) : 'немає'}</td><td>${removeButton}</td></tr>`;
+            return `<tr><td class="symbol">${escapeHtml(symbol)}<small>Gate.io USDT perpetual</small></td><td colspan="8" class="muted">${unavailable()} для цього контракту · останнє успішне оновлення: ${lastSuccessfulUpdate ? formatTime(lastSuccessfulUpdate) : 'немає'}</td><td>${removeButton}</td></tr>`;
           }
           const assessed = data.assessment;
           const ticker = data.ticker;
           const four = data.fourHour;
           const fifteen = data.fifteenMinute;
-          const sources = data.apiErrors.length ? `<small class="api-error">API ERROR: ${escapeHtml(data.apiErrors.join('; '))}</small>` : '';
+          const sources = data.apiErrors.length ? `<small class="api-error">API ERROR: ${escapeHtml(data.apiErrors.join('; '))} · останнє успішне оновлення ${lastSuccessfulUpdate ? formatTime(lastSuccessfulUpdate) : 'немає'}</small>` : '';
           const funding = data.funding;
           const fundingInterval = data.fundingInterval == null ? unavailable() : `${data.fundingInterval / 3600} год`;
           const ratioDisplay = value => value == null ? unavailable() : value.toFixed(3);
@@ -517,17 +522,27 @@
           const fundingState = funding == null ? unavailable() : `${percent(funding * 100, 4)} · ${funding > 0 ? 'тиск LONG' : funding < 0 ? 'тиск SHORT' : 'нейтрально'}`;
           const liquidationText = assessed.longLiquidations == null || assessed.shortLiquidations == null
             ? unavailable()
-            : `LONG ${formatCompact(assessed.longLiquidations)} USD · SHORT ${formatCompact(assessed.shortLiquidations)} USD`;
-          const missingShortQuality = assessed.shortQuality == null ? 'N/A' : `${assessed.shortQuality}/100`;
+            : `LONG ${formatCompact(assessed.longLiquidations)} USDT quote · SHORT ${formatCompact(assessed.shortLiquidations)} USDT quote`;
+          const liquidationHistory = data.stats.rows.slice(-3).map(item => {
+            const timestamp = number(item.time);
+            const date = timestamp == null ? 'час N/A' : new Intl.DateTimeFormat('uk-UA', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(timestamp * 1000));
+            const longValue = number(item.long_liq_usd);
+            const shortValue = number(item.short_liq_usd);
+            return `${date}: LONG ${longValue == null ? unavailable() : `${formatCompact(longValue)} USDT quote`} / SHORT ${shortValue == null ? unavailable() : `${formatCompact(shortValue)} USDT quote`}`;
+          }).join('<br>');
+          const missingShortQuality = assessed.shortQuality == null ? 'N/A — недостатньо даних' : `${assessed.shortQuality}/100`;
+          const shortQualityScore = assessed.shortQuality == null
+            ? null
+            : { score: assessed.shortQuality, known: 3, total: 3 };
           return `<tr>
             <td class="symbol">${escapeHtml(symbol)}<small>USDT perpetual · Gate.io</small></td>
             <td class="metric">${cellValue(formatPrice(number(ticker.last)), 'Last · Gate.io')}${metric(`${formatPrice(number(ticker.mark_price))} / ${formatPrice(number(ticker.index_price))}`, `Mark / Index · Gate.io`)}</td>
             <td class="metric">${cellValue(percent(number(ticker.change_percentage)), '24h change · Gate.io')}<small>Quote volume 24h: ${formatCompact(number(ticker.volume_24h_quote))} USDT · Gate.io</small></td>
-            <td class="metric">${cellValue(fundingState, 'Funding · Gate.io')}<small>Інтервал: ${fundingInterval} · contracts · відносно історії: ${assessed.fundingMean == null ? 'N/A' : percent((funding - assessed.fundingMean) * 100, 4)}</small></td>
-            <td class="metric">${cellValue(assessed.openInterest == null ? unavailable() : `${formatCompact(assessed.openInterest)} контрактів`, 'OI · Gate.io contract_stats')}<small>${assessed.openInterestUsd == null ? unavailable() : `OI value ${formatCompact(assessed.openInterestUsd)} USD · Gate.io`}</small><small>Зміна 4H: ${percent(assessed.oiChange)} · Gate.io contract_stats</small></td>
+            <td class="metric">${cellValue(fundingState, 'Funding · Gate.io')}<small>Інтервал: ${fundingInterval} · contracts · відносно історії: ${funding == null || assessed.fundingMean == null ? unavailable() : percent((funding - assessed.fundingMean) * 100, 4)}</small></td>
+            <td class="metric">${cellValue(assessed.openInterest == null ? unavailable() : `${formatCompact(assessed.openInterest)} контрактів`, 'OI · Gate.io contract_stats')}<small>${assessed.openInterestUsd == null ? unavailable() : `OI value ${formatCompact(assessed.openInterestUsd)} USDT quote · Gate.io`}</small><small>Зміна 4H: ${percent(assessed.oiChange)} · Gate.io contract_stats</small></td>
             <td class="metric">${fourDetails}<small>Funding pressure: ${funding == null ? 'N/A' : funding > 0 ? 'positive' : 'not positive'} · Gate.io</small></td>
-            <td class="metric">${fifteenDetails}<small>Liquidations: ${liquidationText} · Gate.io contract_stats</small></td>
-            <td><div class="score-grid">${scoreCard('SQUEEZE EVIDENCE', assessed.squeeze)}${scoreCard('BEARISH CONFIRMATION', assessed.bearish)}${scoreCard('SHORT ENTRY QUALITY', assessed.entry)}</div><small>Комбінована якість входу: ${missingShortQuality}</small></td>
+            <td class="metric">${fifteenDetails}<small>Останній завершений 4H період: ${liquidationText} · Gate.io contract_stats</small><small>Історія liquidation 4H:<br>${liquidationHistory || unavailable()} · Gate.io contract_stats</small></td>
+            <td><div class="score-grid">${scoreCard('SQUEEZE EVIDENCE', assessed.squeeze)}${scoreCard('BEARISH CONFIRMATION', assessed.bearish)}${scoreCard('SHORT ENTRY QUALITY', shortQualityScore)}</div><small>Якість точки входу: ${assessed.entry.score == null ? 'N/A — недостатньо даних' : `${assessed.entry.score}/100`} · комбінований score: ${missingShortQuality}</small></td>
             <td><span class="badge ${assessed.statusClass}">${assessed.status}</span><small>Top L/S account ${ratioDisplay(assessed.topLsrAccount)} · top size ${ratioDisplay(assessed.topLsrSize)} · L/S ${ratioDisplay(assessed.lsr)} · taker ${ratioDisplay(assessed.takerLsr)} · Gate.io contract_stats</small>${sources}${apiError ? '<small class="api-error">API ERROR · показані останні успішні дані</small>' : ''}</td>
             <td>${removeButton}</td>
           </tr>`;
@@ -637,7 +652,10 @@
           dataBySymbol.forEach((data, symbol) => {
             if (data) latestData.set(symbol, data);
           });
-          renderWatchlist(new Map(watchlist.map(symbol => [symbol, latestData.get(symbol)])));
+          dataBySymbol.forEach((data, symbol) => {
+            if (!data) latestData.delete(symbol);
+          });
+          renderWatchlist(dataBySymbol);
           renderMovers();
           lastSuccessfulUpdate = new Date();
           document.getElementById('updated').textContent = `Gate.io · оновлено ${formatTime(lastSuccessfulUpdate)}`;
